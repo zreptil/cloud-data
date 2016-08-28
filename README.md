@@ -36,3 +36,5 @@ In the index.html of the project i just add these two elements to the body.
 ```
 
 All the application work is done in `xxx-signed-in`. In `xxx-signed-out` there is the html-code for a splash-screen that tells the user what he can do with this application.
+
+When the signin in google was successful then the element `xxx-signed-out` is hidden and he element `xxx-signed-in` is shown. Also the function `xxx-signed-in.signinDone` is called. There you can do all the work that has to be done, when the user has an authorized connection to the google webservices.
