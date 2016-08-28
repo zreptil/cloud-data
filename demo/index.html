@@ -1,0 +1,190 @@
+﻿<!doctype html>
+<html>
+<head>
+  <title>cloud-data demo</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=yes">
+  <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+
+  <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
+  <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
+
+  <link rel="import" href="../../paper-button/paper-button.html">
+  <link rel="import" href="../cloud-data.html">
+  <style is="custom-style" include="demo-pages-shared-styles">
+    body
+    {
+      font-family: 'RobotoDraft', 'Roboto', sans-serif;
+      line-height:1.2;
+      vertical-align:middle;
+      color: black;
+      @apply(--watermark);
+      @apply(--layout-vertical);
+      @apply(--layout-fullbleed);
+      font-size: 1em;
+      padding: 0px!important;
+      height: 100vh;
+    }
+    #main
+    {
+      text-align: center;
+    }
+    cloud-data
+    {
+      padding-bottom: 1em;
+    }
+    #base
+    {
+      @apply(--layout-flex);
+      @apply(--layout-vertical);
+    }
+    #base div:first-child
+    {
+      @apply(--layout);
+    }
+    cloud-data-actions
+    {
+      @apply(--layout-horizontal);
+      @apply(--layout-flex);
+      @apply(--shadow-elevation-2dp);
+      @apply(--demo-snippet);
+      margin: 1em;
+      padding: 1em;
+    }
+  </style>
+</head>
+<body>
+  <dom-module id="cloud-data-actions">
+    <style is="custom-style" include="demo-pages-shared-styles">
+      :host
+      {
+      }
+      #signedIn
+      {
+        @apply(--layout-vertical);
+        @apply(--layout-center);
+      }
+      #signedIn>div:first-child
+      {
+        padding-bottom: 10px;
+        margin-right: 1em;
+      }
+      #list
+      {
+        @apply(--layout-vertical);
+        @apply(--layout-flex);
+        @apply(--shadow-elevation-2dp);
+        overflow-y: auto;
+        overflow-x: hidden;
+        text-align: left;
+      }
+      #right
+      {
+        @apply(--layout-vertical);
+        @apply(--layout-flex);
+      }
+    </style>
+    <template>
+      <div id="signedIn">
+        <div>You are signed in with this google-account:</div>
+        <img id="userImage">
+        <div id="userName"></div>
+        <paper-button raised on-tap="btnClick">Request Filelist</paper-button>
+      </div>
+      <div id="right">
+        <div id="title"></div>
+        <div id="list"></div>
+      </div>
+    </template>
+  </dom-module>
+  
+  <div id="base">
+    <div class="vertical-section-container centered">
+      <h3>Basic cloud-data Demo</h3>
+      <div id="main">
+        <demo-snippet>
+          <template>
+            <cloud-data id="cloudData"
+              google-client-id="793487175901-8rveek6c1t7di9er4q2d7l5d2937n4jm.apps.googleusercontent.com"
+              google-signin-show-selector="#signedIn"
+              disconnect-on-signout=true />
+          </template>
+        </demo-snippet>
+      </div>
+    </div>
+    <cloud-data-actions />
+  </div>
+
+  <script>
+    document.addEventListener("WebComponentsReady", function() 
+    {
+      var cloudData = document.querySelector("#cloudData");
+      document.querySelector("cloud-data-actions").cloudData = cloudData;
+      cloudData.addEventListener("status-change", function()
+      {
+        document.querySelector("#userName").textContent = cloudData.googleUserName;
+        document.querySelector("#userImage").src = cloudData.googleUserImg;
+        document.querySelector("#list").innerHTML = "";
+      });
+      
+    });
+    
+    HTMLImports.whenReady(function() {
+      Polymer(
+      {
+        is: "cloud-data-actions"
+       ,btnClick: function()
+        {
+//          this.cloudData.requestFileList(this,"*.*",this.listLoaded);
+          this.cloudData.getBackupFile("*.png", "test.zip");
+          //var data = {_id:"cloudData",egal:"woscht"};
+          //this.cloudData.saveData(this,data,"json");
+          //this.cloudData.requestData(self.dateData.idPrefix + "food","json",self,self.foodLoaded);
+        }
+       ,listLoaded: function(self,status,list)
+        {
+          if(status != "ok")
+            return;
+            
+          self.$.list.innerHTML = "";
+          for(var key in list)
+          {
+            var file = list[key];
+            var btn = document.createElement("paper-button");
+            btn.onclick = self.fileClick;
+            btn.className = "filebtn";
+            btn.file = file;
+            btn.self = self;
+            btn.innerHTML = key + " - " + file.name;
+            self.$.list.appendChild(btn);
+          }
+        }
+       ,fileClick: function()
+        {
+          this.self.cloudData.requestData(this.file.name,"",this.self,this.self.fileLoaded);
+        }
+       ,fileLoaded: function(self,status,data)
+        {
+          try
+          {
+            if(data.content)
+            {
+              var blob = new Blob([data.content]);//,{type:"image/jpeg"});
+              saveAs(blob, data._id + "." + data._ext);
+            }
+            else
+            {
+              self.$.list.innerHTML = JSON.stringify(data);
+            }
+            self.$.title.innerHTML = "content of " + data._id;
+          }
+          catch(ex)
+          {
+            alert("error when loading file: " + ex);
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
