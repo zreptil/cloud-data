@@ -879,12 +879,12 @@
                     return;
                   }
                 }
-                __cloudData.self._requestResult("{}",ext,parent,onDataLoaded,{id:"",modifiedTime:""});
+                __cloudData.self._requestResult({body:"{}"},ext,parent,onDataLoaded,{id:"",modifiedTime:""});
                 __cloudData.self._endRequest(id);
               }
               else if(files)
               {
-                __cloudData.self._requestResult("{}",ext,parent,onDataLoaded,{id:"",modifiedTime:""});
+                __cloudData.self._requestResult({body:"{}"},ext,parent,onDataLoaded,{id:"",modifiedTime:""});
                 __cloudData.self._endRequest(id);
               }
               else
@@ -963,20 +963,20 @@
           data = JSON.parse(content.body);
         else
           data = {content:content.body};
-        this.dataPool.push(this.cloneOf(data));
-        while(this.dataPool.length > 10)
-          this.dataPool.splice(0, 1);
-        data._id = __cloudData.id;
-        data._fileId = file.id;
-        data._ext = ext;
-        data._modified = file.modifiedTime;
       }
       catch(e)
       {
-        this._msg("_requestResult("+content+","+__cloudData.id+","+file.id+")");
+        this._msgDebug("_requestResult("+content+","+__cloudData.id+","+file.id+"): "+e.message);
         data = {_id:__cloudData.id};
         status = "error";
       }
+      this.dataPool.push(this.cloneOf(data));
+      while(this.dataPool.length > 10)
+        this.dataPool.splice(0, 1);
+      data._id = __cloudData.id;
+      data._fileId = file.id;
+      data._ext = ext;
+      data._modified = file.modifiedTime;
       if(onDataLoaded)
         onDataLoaded(parent,status,data);
     },
