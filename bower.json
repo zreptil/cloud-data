@@ -1,6 +1,5 @@
 {
   "name": "cloud-data",
-  "version": "2.0.0",
   "description": "An element with methods to access cloud-storage.",
   "main": "cloud-data.html",
   "dependencies": {
