@@ -970,6 +970,9 @@ data. It uses the element google-signin for the communication with google webser
             case "writeSheetData":
               setTimeout(this.writeSheetData(req[1],req[2],req[3],req[4]),100);
               break;
+            case "addSheet":
+              setTimeout(this.addSheet(req[1],req[2],req[3]),100);
+              break;
           }
         }
       }
@@ -1126,7 +1129,7 @@ data. It uses the element google-signin for the communication with google webser
      *
      * the function onInfoLoaded receives this parameters:
      *
-     * {Object} parent  the same parameter that was given in requestData.
+     * {Object} parent  the same parameter that was given in loadSheetInfo.
      *
      * {String} status  the status of the operation:
      *
@@ -1184,9 +1187,9 @@ data. It uses the element google-signin for the communication with google webser
      *
      * the function onDataReceived receives this parameters:
      *
-     * {Object} parent  the same parameter that was given in requestData.
+     * {Object} parent  the same parameter that was given in readSheetData.
      *
-     * {String} range   the same parameter that was given in requestData.
+     * {String} range   the same parameter that was given in readSheetData.
      *
      * {String} status  the status of the operation:
      *
@@ -1239,13 +1242,13 @@ data. It uses the element google-signin for the communication with google webser
      *                                 callback, parent should be set to the object, that contains the
      *                                 function onDataWritten
      * @param {String}  range          range of cells to be loaded.
-     * @param {Event}   onDataWritten the function that gets called when loading is done.
+     * @param {Event}   onDataWritten the function that gets called when writing is done.
      *
      * the function onDataWritten receives this parameters:
      *
-     * {Object} parent  the same parameter that was given in requestData.
+     * {Object} parent  the same parameter that was given in writeSheetData.
      *
-     * {String} range   the same parameter that was given in requestData.
+     * {String} range   the same parameter that was given in writeSheetData.
      *
      * {String} status  the status of the operation:
      *
@@ -1296,6 +1299,82 @@ data. It uses the element google-signin for the communication with google webser
       {
         if(onDataWritten)
           onDataWritten(parent,range,"error",error.result.error);
+        __cloudData.self._msg(error.result.error.message);
+        __cloudData.self._endRequest("writeSheetData");
+      });
+    },
+    /**
+     * Write data to a google sheet.
+     *
+     * @param {Object}  parent         the parent that will be given as parameter to onSheetAdded. Since
+     *                                 the variable "this" is this class when invoking the onSheetAdded-
+     *                                 callback, parent should be set to the object, that contains the
+     *                                 function onSheetAdded
+     * @param {String}  title          title of the new sheet.
+     * @param {Event}   onSheetAdded   the function that gets called when adding is done.
+     *
+     * the function onSheetAdded receives this parameters:
+     *
+     * {Object} parent  the same parameter that was given in addSheet.
+     *
+     * {String} title   the same parameter that was given in addSheet.
+     *
+     * {String} status  the status of the operation:
+     *
+     *                  "ok"        everything is fine.
+     *
+     *                  "error"     the data property contains an object with the error.
+     *
+     * {Object} data    result of the add operation.
+     */
+    addSheet: function(parent,title,onSheetAdded)
+    {
+      if(__cloudData != undefined)
+      {
+        this.dataRequests.push(["addSheet",parent,title,onSheetAdded]);
+        return;
+      }
+      
+      __cloudData = {self:this};
+      this._callGoogleApi("Adding sheet " + title + "...",function(authResult)
+      {
+        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        {
+          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                     ,requests:
+                      {
+                        addSheet: 
+                        {
+                          properties:
+                          {
+                            title: title
+                          }
+                        }
+                      }
+                     };
+          gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
+          {
+            if(onSheetAdded)
+              onSheetAdded(parent,title,"ok",response.result);
+            __cloudData.self._endRequest("writeSheetData");
+          }, function(error)
+          {
+            if(onSheetAdded)
+              onDataWritten(parent,title,"error",error.result.error);
+            __cloudData.self._msg(error.result.error.message);
+            __cloudData.self._endRequest("writeSheetData");
+          });
+        }, function(error)
+        {
+          if(onSheetAdded)
+            onDataWritten(parent,title,"error",error.result.error);
+          __cloudData.self._msg(error.result.error.message);
+          __cloudData.self._endRequest("writeSheetData");
+        });
+      }, function(error)
+      {
+        if(onSheetAdded)
+          onDataWritten(parent,title,"error",error.result.error);
         __cloudData.self._msg(error.result.error.message);
         __cloudData.self._endRequest("writeSheetData");
       });
