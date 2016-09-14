@@ -92,12 +92,6 @@ data. It uses the element google-signin for the communication with google webser
         */
      ,googleClientId: {type: String, value: ""}
       /**
-        * key for access to google sheets api.
-        * can be found in the google api manager at 
-        * https://console.developers.google.com/apis/credentials/key/0.
-        */
-     ,googleSheetsApiKey: {type: String, value: ""}
-      /**
         * id for file that should be accessed with google sheets api. 
         * starts with https://docs.google.com/spreadsheets/d/ and is the
         * link, you get, when linking to a sheet.
@@ -1157,7 +1151,12 @@ data. It uses the element google-signin for the communication with google webser
           gapi.client.sheets.spreadsheets.get(args).then(function(response)
           {
             if(onInfoLoaded)
-              onInfoLoaded(parent,"ok",response.result.sheets);
+            {
+              var sheets = [];
+              for(var i=0; i<response.result.sheets.length; i++)
+                sheets.push(response.result.sheets[i].properties);
+              onInfoLoaded(parent,"ok",sheets);
+            }
             __cloudData.self._endRequest("loadSheetInfo");
           }, function(error)
           {
@@ -1182,7 +1181,9 @@ data. It uses the element google-signin for the communication with google webser
      *                                 the variable "this" is this class when invoking the onDataReceived-
      *                                 callback, parent should be set to the object, that contains the
      *                                 function onDataReceived
-     * @param {String}  range          range of cells to be loaded.
+     * @param {String   range          range of cells to be loaded. if this is an array, then every entry
+     *         or                      in this array is considered a range to receive.
+     *         Array}  
      * @param {Event}   onDataReceived the function that gets called when loading is done.
      *
      * the function onDataReceived receives this parameters:
@@ -1208,23 +1209,47 @@ data. It uses the element google-signin for the communication with google webser
       }
       
       __cloudData = {self:this};
+      
+      
       this._callGoogleApi("Reading range " + range + "...",function(authResult)
       {
         gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
         {
           var args = {spreadsheetId:__cloudData.self.googleSheetsFileId,range: range};
-          gapi.client.sheets.spreadsheets.values.get(args).then(function(response)
+          if(range.constructor === Array)
           {
-            if(onDataReceived)
-              onDataReceived(parent,range,"ok",response.result.values);
-            __cloudData.self._endRequest("readSheetData");
-          }, function(error)
+            delete args.range;
+            args.ranges = range;
+            args.valueRenderOption = "UNFORMATTED_VALUE";
+            args.majorDimension = "ROWS";
+            gapi.client.sheets.spreadsheets.values.batchGet(args).then(function(response)
+            {
+              if(onDataReceived)
+                onDataReceived(parent,range,"ok",response.result.valueRanges);
+              __cloudData.self._endRequest("readSheetData");
+            }, function(error)
+            {
+              if(onDataReceived)
+                onDataReceived(parent,range,"error",error.result.error);
+              __cloudData.self._msg(error.result.error.message);
+              __cloudData.self._endRequest("readSheetData");
+            });
+          }
+          else
           {
-            if(onDataReceived)
-              onDataReceived(parent,range,"error",error.result.error);
-            __cloudData.self._msg(error.result.error.message);
-            __cloudData.self._endRequest("readSheetData");
-          });
+            gapi.client.sheets.spreadsheets.values.get(args).then(function(response)
+            {
+              if(onDataReceived)
+                onDataReceived(parent,range,"ok",response.result.values);
+              __cloudData.self._endRequest("readSheetData");
+            }, function(error)
+            {
+              if(onDataReceived)
+                onDataReceived(parent,range,"error",error.result.error);
+              __cloudData.self._msg(error.result.error.message);
+              __cloudData.self._endRequest("readSheetData");
+            });
+          }
         });
       },function(error)
       {
@@ -1241,7 +1266,9 @@ data. It uses the element google-signin for the communication with google webser
      *                                 the variable "this" is this class when invoking the onDataWritten-
      *                                 callback, parent should be set to the object, that contains the
      *                                 function onDataWritten
-     * @param {String}  range          range of cells to be loaded.
+     * @param {String}  range          range of cells to be written. if this is empty then the data is 
+     *                                 considered to be written with batchUpdate.
+     * @param {Object}  data           data to write.
      * @param {Event}   onDataWritten the function that gets called when writing is done.
      *
      * the function onDataWritten receives this parameters:
@@ -1271,23 +1298,44 @@ data. It uses the element google-signin for the communication with google webser
       {
         gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
         {
-          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
-                     ,majorDimension: "ROWS"
-                     ,range: range
-                     ,values: data
-                     ,valueInputOption: "USER_ENTERED"};
-          gapi.client.sheets.spreadsheets.values.update(args).then(function(response)
+          if(range == "" || range == undefined)
           {
-            if(onDataWritten)
-              onDataWritten(parent,range,"ok",response.result);
-            __cloudData.self._endRequest("writeSheetData");
-          }, function(error)
+            var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                       ,data: data
+                       ,valueInputOption: "USER_ENTERED"};
+            gapi.client.sheets.spreadsheets.values.batchUpdate(args).then(function(response)
+            {
+              if(onDataWritten)
+                onDataWritten(parent,range,"ok",response.result);
+              __cloudData.self._endRequest("writeSheetData");
+            }, function(error)
+            {
+              if(onDataWritten)
+                onDataWritten(parent,range,"error",error.result.error);
+              __cloudData.self._msg(error.result.error.message);
+              __cloudData.self._endRequest("writeSheetData");
+            });
+          }
+          else
           {
-            if(onDataWritten)
-              onDataWritten(parent,range,"error",error.result.error);
-            __cloudData.self._msg(error.result.error.message);
-            __cloudData.self._endRequest("writeSheetData");
-          });
+            var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                       ,majorDimension: "ROWS"
+                       ,range: range
+                       ,values: data
+                       ,valueInputOption: "USER_ENTERED"};
+            gapi.client.sheets.spreadsheets.values.update(args).then(function(response)
+            {
+              if(onDataWritten)
+                onDataWritten(parent,range,"ok",response.result);
+              __cloudData.self._endRequest("writeSheetData");
+            }, function(error)
+            {
+              if(onDataWritten)
+                onDataWritten(parent,range,"error",error.result.error);
+              __cloudData.self._msg(error.result.error.message);
+              __cloudData.self._endRequest("writeSheetData");
+            });
+          }
         }, function(error)
         {
           if(onDataWritten)
@@ -1304,7 +1352,7 @@ data. It uses the element google-signin for the communication with google webser
       });
     },
     /**
-     * Write data to a google sheet.
+     * Add a page to google sheet.
      *
      * @param {Object}  parent         the parent that will be given as parameter to onSheetAdded. Since
      *                                 the variable "this" is this class when invoking the onSheetAdded-
@@ -1360,21 +1408,21 @@ data. It uses the element google-signin for the communication with google webser
           }, function(error)
           {
             if(onSheetAdded)
-              onDataWritten(parent,title,"error",error.result.error);
+              onSheetAdded(parent,title,"error",error.result.error);
             __cloudData.self._msg(error.result.error.message);
             __cloudData.self._endRequest("writeSheetData");
           });
         }, function(error)
         {
           if(onSheetAdded)
-            onDataWritten(parent,title,"error",error.result.error);
+            onSheetAdded(parent,title,"error",error.result.error);
           __cloudData.self._msg(error.result.error.message);
           __cloudData.self._endRequest("writeSheetData");
         });
       }, function(error)
       {
         if(onSheetAdded)
-          onDataWritten(parent,title,"error",error.result.error);
+          onSheetAdded(parent,title,"error",error.result.error);
         __cloudData.self._msg(error.result.error.message);
         __cloudData.self._endRequest("writeSheetData");
       });
