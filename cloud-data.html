@@ -80,7 +80,7 @@ data. It uses the element google-signin for the communication with google webser
         * The scopes that are needed to do the work. This should not be changed, unless the code 
         * changes and more scopes are required.
         */
-      ,_scopes: {type:String, value: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar"}
+      ,_scopes: {type:String, value: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/spreadsheets"}
       /**
         * if true, the client is disconnected when the user signs out from google.
         */
@@ -91,6 +91,18 @@ data. It uses the element google-signin for the communication with google webser
         * https://console.developers.google.com/apis/credentials/oauthclient.
         */
      ,googleClientId: {type: String, value: ""}
+      /**
+        * key for access to google sheets api.
+        * can be found in the google api manager at 
+        * https://console.developers.google.com/apis/credentials/key/0.
+        */
+     ,googleSheetsApiKey: {type: String, value: ""}
+      /**
+        * id for file that should be accessed with google sheets api. 
+        * starts with https://docs.google.com/spreadsheets/d/ and is the
+        * link, you get, when linking to a sheet.
+        */
+     ,googleSheetsFileId: {type: String, value: ""}
       /**
         * css-selector of a html-element. this element is hidden, when signed-in to google and shown when not signed-in.
         */
@@ -949,6 +961,15 @@ data. It uses the element google-signin for the communication with google webser
             case "_saveZip":
               setTimeout(this._saveZip(req[1]),100);
               break;
+            case "loadSheetInfo":
+              setTimeout(this.loadSheetInfo(req[1],req[2]),100);
+              break;
+            case "readSheetData":
+              setTimeout(this.readSheetData(req[1],req[2],req[3]),100);
+              break;
+            case "writeSheetData":
+              setTimeout(this.writeSheetData(req[1],req[2],req[3],req[4]),100);
+              break;
           }
         }
       }
@@ -1054,8 +1075,8 @@ data. It uses the element google-signin for the communication with google webser
     /**
      * Get a backupfile in zip-format.
      *
-     * @param {string}  filemask     the filemask for the files.
-     * @param {string}  zipfilename  name of the zipfile for download.
+     * @param {String}  filemask     the filemask for the files.
+     * @param {String}  zipfilename  name of the zipfile for download.
      */
     getBackupFile: function(filemask,zipfilename)
     {
@@ -1093,6 +1114,191 @@ data. It uses the element google-signin for the communication with google webser
         saveAs(content,zipfilename);
       });
       this.$.overlay.showCancelButton = false;
+    },
+    /**
+     * Retrieve info about a google sheet.
+     *
+     * @param {Object}  parent       the parent that will be given as parameter to onDataLoaded. Since
+     *                               the variable "this" is this class when invoking the onDataLoaded-
+     *                               callback, parent should be set to the object, that contains the
+     *                               function onDataLoaded.
+     * @param {Event}   onInfoLoaded the function that gets called when loading is done.
+     *
+     * the function onInfoLoaded receives this parameters:
+     *
+     * {Object} parent  the same parameter that was given in requestData.
+     *
+     * {String} status  the status of the operation:
+     *
+     *                  "ok"        everything is fine.
+     *
+     *                  "error"     the data property contains an object with the error.
+     *
+     * {Object} sheets  an array of sheets information the error data.
+     */
+    loadSheetInfo: function(parent,onInfoLoaded)
+    {
+      if(__cloudData != undefined)
+      {
+        this.dataRequests.push(["loadSheetInfo",parent,onInfoLoaded]);
+        return;
+      }
+      
+      __cloudData = {self:this};
+      this._callGoogleApi("Loading Sheetinfo...",function(authResult)
+      {
+        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        {
+          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                     ,fields: "sheets.properties"};
+          gapi.client.sheets.spreadsheets.get(args).then(function(response)
+          {
+            if(onInfoLoaded)
+              onInfoLoaded(parent,"ok",response.result.sheets);
+            __cloudData.self._endRequest("loadSheetInfo");
+          }, function(error)
+          {
+            if(onDataLoaded)
+              onDataLoaded(parent,"error",error.result.error);
+            __cloudData.self._msg(error.result.error.message);
+            __cloudData.self._endRequest("loadSheetInfo");
+          });
+        }, function(error)
+        {
+          if(onDataLoaded)
+            onDataLoaded(parent,"error",error.result.error);
+          __cloudData.self._msg(error.result.error.message);
+          __cloudData.self._endRequest("loadSheetInfo");
+        });
+      });
+    },
+    /**
+     * Retrieve data from a google sheet.
+     *
+     * @param {Object}  parent         the parent that will be given as parameter to onDataReceived. Since
+     *                                 the variable "this" is this class when invoking the onDataReceived-
+     *                                 callback, parent should be set to the object, that contains the
+     *                                 function onDataReceived
+     * @param {String}  range          range of cells to be loaded.
+     * @param {Event}   onDataReceived the function that gets called when loading is done.
+     *
+     * the function onDataReceived receives this parameters:
+     *
+     * {Object} parent  the same parameter that was given in requestData.
+     *
+     * {String} range   the same parameter that was given in requestData.
+     *
+     * {String} status  the status of the operation:
+     *
+     *                  "ok"        everything is fine.
+     *
+     *                  "error"     the data property contains an object with the error.
+     *
+     * {Object} data    the data that was loaded or the json-data of the error
+     */
+    readSheetData: function(parent,range,onDataReceived)
+    {
+      if(__cloudData != undefined)
+      {
+        this.dataRequests.push(["readSheetData",parent,range,onDataReceived]);
+        return;
+      }
+      
+      __cloudData = {self:this};
+      this._callGoogleApi("Reading range " + range + "...",function(authResult)
+      {
+        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        {
+          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId,range: range};
+          gapi.client.sheets.spreadsheets.values.get(args).then(function(response)
+          {
+            if(onDataReceived)
+              onDataReceived(parent,range,"ok",response.result.values);
+            __cloudData.self._endRequest("readSheetData");
+          }, function(error)
+          {
+            if(onDataReceived)
+              onDataReceived(parent,range,"error",error.result.error);
+            __cloudData.self._msg(error.result.error.message);
+            __cloudData.self._endRequest("readSheetData");
+          });
+        });
+      },function(error)
+      {
+        if(onDataReceived)
+          onDataReceived(parent,range,"error",error.result.error);
+        __cloudData.self._msg(error.result.error.message);
+        __cloudData.self._endRequest("readSheetData");
+      });
+    },
+    /**
+     * Write data to a google sheet.
+     *
+     * @param {Object}  parent         the parent that will be given as parameter to onDataWritten. Since
+     *                                 the variable "this" is this class when invoking the onDataWritten-
+     *                                 callback, parent should be set to the object, that contains the
+     *                                 function onDataWritten
+     * @param {String}  range          range of cells to be loaded.
+     * @param {Event}   onDataWritten the function that gets called when loading is done.
+     *
+     * the function onDataWritten receives this parameters:
+     *
+     * {Object} parent  the same parameter that was given in requestData.
+     *
+     * {String} range   the same parameter that was given in requestData.
+     *
+     * {String} status  the status of the operation:
+     *
+     *                  "ok"        everything is fine.
+     *
+     *                  "error"     the data property contains an object with the error.
+     *
+     * {Object} data    result of the write operation.
+     */
+    writeSheetData: function(parent,range,data,onDataWritten)
+    {
+      if(__cloudData != undefined)
+      {
+        this.dataRequests.push(["writeSheetData",parent,range,data,onDataWritten]);
+        return;
+      }
+      
+      __cloudData = {self:this};
+      this._callGoogleApi("Writing range " + range + "...",function(authResult)
+      {
+        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        {
+          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                     ,majorDimension: "ROWS"
+                     ,range: range
+                     ,values: data
+                     ,valueInputOption: "USER_ENTERED"};
+          gapi.client.sheets.spreadsheets.values.update(args).then(function(response)
+          {
+            if(onDataWritten)
+              onDataWritten(parent,range,"ok",response.result);
+            __cloudData.self._endRequest("writeSheetData");
+          }, function(error)
+          {
+            if(onDataWritten)
+              onDataWritten(parent,range,"error",error.result.error);
+            __cloudData.self._msg(error.result.error.message);
+            __cloudData.self._endRequest("writeSheetData");
+          });
+        }, function(error)
+        {
+          if(onDataWritten)
+            onDataWritten(parent,range,"error",error.result.error);
+          __cloudData.self._msg(error.result.error.message);
+          __cloudData.self._endRequest("writeSheetData");
+        });
+      }, function(error)
+      {
+        if(onDataWritten)
+          onDataWritten(parent,range,"error",error.result.error);
+        __cloudData.self._msg(error.result.error.message);
+        __cloudData.self._endRequest("writeSheetData");
+      });
     }
   });
 </script>
