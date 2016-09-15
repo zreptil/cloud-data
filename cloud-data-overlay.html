@@ -21,7 +21,7 @@
     }
   </style>
   <template>
-    <paper-material elevation="4">
+    <paper-material id="msg" elevation="4">
       <div id="cont"></div>
       <paper-button id="btnCancel" on-tap="_cancelClick">Cancel</paper-button>
     </paper-material>
@@ -91,11 +91,19 @@
        */
       _textChanged: function()
       {
-        this.$.cont.innerHTML = this.text;
-        if(!this.showCancelButton)
-          this.$.btnCancel.setAttribute("hidden","");
+        if(this.text == "")
+        {
+          this.$.msg.hidden = true;
+        }
         else
-          this.$.btnCancel.removeAttribute("hidden");
+        {
+          this.$.msg.hidden = false;
+          this.$.cont.innerHTML = this.text;
+          if(!this.showCancelButton)
+            this.$.btnCancel.hidden = true;
+          else
+            this.$.btnCancel.hidden = false;
+        }
       }
     });
   })();
