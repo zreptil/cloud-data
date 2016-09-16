@@ -5,10 +5,10 @@
 <link rel="import" href="import.html">
 <link rel="import" href="cloud-data-overlay.html">
 <!--
-`cloud-data` is an element that encapsulates some of the features of googles cloud 
+`cloud-data` is an element that encapsulates some of the features of googles cloud
 data. It uses the element google-signin for the communication with google webservices.
 
-@demo demo/index.html 
+@demo demo/index.html
 -->
 <dom-module id="cloud-data">
   <template>
@@ -60,7 +60,7 @@ data. It uses the element google-signin for the communication with google webser
 </dom-module>
 <script>
   // this variable is needed on a global level
-  // since it is used to manage data-access 
+  // since it is used to manage data-access
   // across callback-limits.
   var __cloudData = undefined;
   Polymer(
@@ -77,7 +77,7 @@ data. It uses the element google-signin for the communication with google webser
         */
       ,_signedIn: {type: Boolean, value: false}
       /**
-        * The scopes that are needed to do the work. This should not be changed, unless the code 
+        * The scopes that are needed to do the work. This should not be changed, unless the code
         * changes and more scopes are required.
         */
       ,_scopes: {type:String, value: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/spreadsheets"}
@@ -86,13 +86,13 @@ data. It uses the element google-signin for the communication with google webser
         */
       ,disconnectOnSignout: {type:Boolean, value: false}
       /**
-        * id for google webapp that wants to use this component. 
-        * can be found in the google api manager at 
+        * id for google webapp that wants to use this component.
+        * can be found in the google api manager at
         * https://console.developers.google.com/apis/credentials/oauthclient.
         */
      ,googleClientId: {type: String, value: ""}
       /**
-        * id for file that should be accessed with google sheets api. 
+        * id for file that should be accessed with google sheets api.
         * starts with https://docs.google.com/spreadsheets/d/ and is the
         * link, you get, when linking to a sheet.
         */
@@ -101,7 +101,7 @@ data. It uses the element google-signin for the communication with google webser
         * css-selector of a html-element. this element is hidden, when signed-in to google and shown when not signed-in.
         */
      ,googleSigninHideSelector: {type: String, value: ""}
-      /** 
+      /**
        *  css-selector of a html-element. this element is shown, when signed-in to google and hidden when not signed-in.
        *  if this element has a method named `msg` then this method is called whenever cloud-data wants to tell the
        *  user something.
@@ -131,7 +131,7 @@ data. It uses the element google-signin for the communication with google webser
         * if not present, then an overlay with a message is shown when executing timeconsuming tasks.
         */
      ,hideOverlay: {type: Boolean, value: false}
-      /** 
+      /**
         * if set, then all messages that are created by api-calls are replaced with this text.
         */
      ,overlayMsg: {type: String, value: undefined}
@@ -159,7 +159,7 @@ data. It uses the element google-signin for the communication with google webser
       {
         this.showControl = undefined;
       }
-      
+
       document.body.appendChild(this.$.overlay);
     },
     /**
@@ -175,7 +175,7 @@ data. It uses the element google-signin for the communication with google webser
         setTimeout(this._callGoogleApi(msg,callback,true),10);
         return;
       }
-      
+
       if(!gapi.auth)
       {
         gapi.load("auth",function()
@@ -208,10 +208,10 @@ data. It uses the element google-signin for the communication with google webser
         });
         return;
       }
-      
+
       if(this.overlayMsg != undefined)
         msg = this.overlayMsg;
-        
+
       if(!this.$.overlay.isCanceled)
         this.$.overlay.show(msg);
       if(__cloudData == undefined)
@@ -318,7 +318,7 @@ data. It uses the element google-signin for the communication with google webser
         this.dataRequests.push(["requestCalendarList",parent,onCalendarListReceived]);
         return;
       }
-      
+
       if(this.$.calendar.api == undefined)
       {
         if(onCalendarListReceived)
@@ -328,14 +328,14 @@ data. It uses the element google-signin for the communication with google webser
 
       __cloudData = {self: this};
       var request = this.$.calendar.api.calendarList.list({"key":""});
-      request.execute(function(resp) 
+      request.execute(function(resp)
       {
         __cloudData = undefined;
-        if (resp.error) 
+        if (resp.error)
         {
           this._msg("error retrieving calendar list: " + resp.message)
         }
-        else 
+        else
         {
           if(onCalendarListReceived)
             onCalendarListReceived(parent,resp.items);
@@ -356,13 +356,13 @@ data. It uses the element google-signin for the communication with google webser
     {
       if(!eventList)
         eventList = [];
-        
+
       if(__cloudData != undefined)
       {
         this.dataRequests.push(["addNotification",parent,calendarId,eventList,time,text,onNotificationSet]);
         return;
       }
-      
+
       if(this.$.calendar.api == undefined)
       {
         if(onNotificationSet)
@@ -407,10 +407,10 @@ data. It uses the element google-signin for the communication with google webser
          ,resource:evt
         }
       );
-      request.execute(function(resp) 
+      request.execute(function(resp)
       {
         __cloudData = undefined;
-        if (resp.error) 
+        if (resp.error)
         {
           this._msg("error when setting the notification: " + resp.message)
         }
@@ -458,7 +458,7 @@ data. It uses the element google-signin for the communication with google webser
           data._id = data._id.substr(0,pos);
         }
       }
-      
+
       if(__cloudData != undefined)
       {
         this.dataRequests.push(["saveData",parent,data,ext,onDataSaved]);
@@ -479,7 +479,7 @@ data. It uses the element google-signin for the communication with google webser
         this.dataPool.push(this.cloneOf(data));
 
       __cloudData = {self:this,id:data._id};
-      
+
       __cloudData.self._msgDebug("saveData: connecting to google-server...");
       this._callGoogleApi("saving data...",function(authResult)
       {
@@ -490,7 +490,7 @@ data. It uses the element google-signin for the communication with google webser
           saveData._fileId = undefined;
           saveData._id = undefined;
           saveData._ext = undefined;
-          
+
           var saveText;
           if(ext == "json")
             saveText = JSON.stringify(saveData);
@@ -513,7 +513,7 @@ data. It uses the element google-signin for the communication with google webser
           temp += "--" + boundary + "\nContent-Type: " + mime + "\n\n" + saveText + "\n";
           temp += "--" + boundary + "--";
           saveData = temp;
-          
+
           if(data._fileId)
           {
             __cloudData.self._msgDebug("saveData: requesting file " + data._id + "." + ext + " for modification check...");
@@ -707,11 +707,17 @@ data. It uses the element google-signin for the communication with google webser
     /**
      * Request list of files from server. the list contains a maximum of 1000 files.
      *
-     * @param {object} parent       the parent that will be given as parameter to onDataLoaded.
-     * @param {string} filemask     filemask for files.
-     * @param {event}  onListLoaded the function that gets called when loading is done.
-     * @param {string} fields       the fields that are requested from the server (default id,name,trashed).
+     * @param {Object} parent       the parent that will be given as parameter to onDataLoaded.
+     *
+     * @param {String} filemask     filemask for files.
+     *
+     * @param {Event}  onListLoaded the function that gets called when loading is done.
+     *
+     * @param {String} fields       the fields that are requested from the server (default id,name,trashed).
      *                              (https://developers.google.com/drive/v3/reference/files/list#try-it)
+     *
+     * @param {String} query        the query to execute. if this is empty then "name contains 'filemask'"
+     *                              is used.
      *
      * the function onListLoaded receives this parameters:
      *
@@ -725,20 +731,23 @@ data. It uses the element google-signin for the communication with google webser
      *
      * {array}  list    the list of found files.
      */
-    requestFileList: function(parent,filemask,onListLoaded,fields)
+    requestFileList: function(parent,filemask,onListLoaded,fields,query)
     {
       if(__cloudData != undefined)
       {
         this.dataRequests.push(["requestFileList",parent,filemask,onListLoaded,fields]);
         return;
       }
-      
+
       if(fields == undefined)
         fields = "id,name";
-        
+
       if(fields.indexOf("trashed")<0)
         fields += ",trashed";
-        
+
+      if(query == undefined)
+        query = "name contains '" + filemask + "'";
+
       __cloudData = {self:this, id:"filelist"};
       this._callGoogleApi("searching files...",function(authResult)
       {
@@ -749,7 +758,7 @@ data. It uses the element google-signin for the communication with google webser
             "pageSize": 1000,
             "fields": "nextPageToken,files(" + fields + ")",
             "orderBy": "name",
-            "q": "name contains '" + filemask + "'"
+            "q": query
           });
           request.execute(function(resp)
           {
@@ -782,7 +791,7 @@ data. It uses the element google-signin for the communication with google webser
      * Request data from server.
      *
      * @param {String}  id           id of the file to request. in fact the filename without extension.
-     * @param {String}  ext          file extension without the dot. if this is empty, then the 
+     * @param {String}  ext          file extension without the dot. if this is empty, then the
      *                               extension is extracted from the id.
      * @param {Object}  parent       the parent that will be given as parameter to onDataLoaded. Since
      *                               the variable "this" is this class when invoking the onDataLoaded-
@@ -804,7 +813,7 @@ data. It uses the element google-signin for the communication with google webser
      *
      * {Object} data    the data that was loaded or the json-data of the error
      *
-     * The data that is given back, is an object. When the requested datafile was a JSON-file then the 
+     * The data that is given back, is an object. When the requested datafile was a JSON-file then the
      * object contains the converted json-content of the file. When the requested datafile was not json,
      * then the object has a property "content" that contains the content of the file.
      *
@@ -812,7 +821,7 @@ data. It uses the element google-signin for the communication with google webser
      *
      * {String} _id      the name of the file without extension.
      *
-     * {String} _fileId  the unique id of the file in the google drive system. This value is used 
+     * {String} _fileId  the unique id of the file in the google drive system. This value is used
      *                   by the function saveData to save the file. If _fileId is not present in the
      *                   object, then a new file is created.
      */
@@ -827,7 +836,7 @@ data. It uses the element google-signin for the communication with google webser
           id = id.substr(0,pos);
         }
       }
-      
+
       if(__cloudData != undefined)
       {
         this.dataRequests.push(["requestData",id,ext,parent,onDataLoaded,msg,skipDataPool]);
@@ -896,7 +905,7 @@ data. It uses the element google-signin for the communication with google webser
                       __cloudData.self._endRequest(id);
                     };
                     xhr.send();
-//*/                      
+//*/
                     return;
                   }
                 }
@@ -928,13 +937,13 @@ data. It uses the element google-signin for the communication with google webser
     {
       __cloudData = undefined;
       var doClose = true;
-      
+
       if(this.$.overlay.isCanceled)
       {
         this.dataRequests.splice(0,this.dataRequests.length);
         this.$.overlay.isCanceled = false;
       }
-      
+
       if(this.dataRequests.length > 0)
       {
         if(this.dataRequests[0].id == id)
@@ -980,6 +989,9 @@ data. It uses the element google-signin for the communication with google webser
             case "addSheet":
               setTimeout(this.addSheet(req[1],req[2],req[3]),100);
               break;
+            case "copySheet":
+              setTimeout(this.copySheet(req[1],req[2],req[3],req[4]),100);
+              break;
           }
         }
       }
@@ -1024,7 +1036,7 @@ data. It uses the element google-signin for the communication with google webser
     {
       if(!pageToken)
         __cloudData.self._zip = new JSZip();
-        
+
       var request = gapi.client.drive.files.list(
       {
         "pageToken": pageToken,
@@ -1033,7 +1045,7 @@ data. It uses the element google-signin for the communication with google webser
         "orderBy": "name",
         "q": "name contains '" + __cloudData.id + "'"
       });
-      
+
       request.then(function(response)
       {
         for(var i=0; i<response.result.files.length; i++)
@@ -1049,7 +1061,7 @@ data. It uses the element google-signin for the communication with google webser
           {
             var msg = "backupfile is being created, please wait ...<br>adding file <b>" + file.name + "</b> hinzu";
             __cloudData.self.requestData(file.name,"",__cloudData.self,__cloudData.self._packBackupFile,msg,false);
-/*            
+/*
             var req = gapi.client.drive.files.get(
             {
               "fileId": file.id
@@ -1095,7 +1107,7 @@ data. It uses the element google-signin for the communication with google webser
         this.dataRequests.push(["getBackupFile",filemask,zipfilename]);
         return;
       }
-      
+
       if(this.$.overlay.isCanceled)
         return;
 
@@ -1110,7 +1122,7 @@ data. It uses the element google-signin for the communication with google webser
       });
     },
     /**
-      * Creates a zip-file from the content of the internal variable 
+      * Creates a zip-file from the content of the internal variable
       * _zip and presents the user a save as dialog.
       *
       * @param {String} zipfilename    Name of the zip-file to recommend to the user.
@@ -1153,7 +1165,7 @@ data. It uses the element google-signin for the communication with google webser
         this.dataRequests.push(["loadSheetInfo",parent,onInfoLoaded]);
         return;
       }
-      
+
       __cloudData = {self:this};
       this._callGoogleApi("loading Sheetinfo...",function(authResult)
       {
@@ -1173,15 +1185,15 @@ data. It uses the element google-signin for the communication with google webser
             __cloudData.self._endRequest("loadSheetInfo");
           }, function(error)
           {
-            if(onDataLoaded)
-              onDataLoaded(parent,"error",error.result.error);
+            if(onInfoLoaded)
+              onInfoLoaded(parent,"error",error.result.error);
             __cloudData.self._msg(error.result.error.message);
             __cloudData.self._endRequest("loadSheetInfo");
           });
         }, function(error)
         {
-          if(onDataLoaded)
-            onDataLoaded(parent,"error",error.result.error);
+          if(onInfoLoaded)
+            onInfoLoaded(parent,"error",error.result.error);
           __cloudData.self._msg(error.result.error.message);
           __cloudData.self._endRequest("loadSheetInfo");
         });
@@ -1196,7 +1208,7 @@ data. It uses the element google-signin for the communication with google webser
      *                                 function onDataReceived
      * @param {String   range          range of cells to be loaded. if this is an array, then every entry
      *         or                      in this array is considered a range to receive.
-     *         Array}  
+     *         Array}
      * @param {Event}   onDataReceived the function that gets called when loading is done.
      *
      * the function onDataReceived receives this parameters:
@@ -1220,10 +1232,10 @@ data. It uses the element google-signin for the communication with google webser
         this.dataRequests.push(["readSheetData",parent,range,onDataReceived]);
         return;
       }
-      
+
       __cloudData = {self:this};
-      
-      
+
+
       this._callGoogleApi("reading range " + range + "...",function(authResult)
       {
         gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
@@ -1279,7 +1291,7 @@ data. It uses the element google-signin for the communication with google webser
      *                                 the variable "this" is this class when invoking the onDataWritten-
      *                                 callback, parent should be set to the object, that contains the
      *                                 function onDataWritten
-     * @param {String}  range          range of cells to be written. if this is empty then the data is 
+     * @param {String}  range          range of cells to be written. if this is empty then the data is
      *                                 considered to be written with batchUpdate.
      * @param {Object}  data           data to write.
      * @param {Event}   onDataWritten the function that gets called when writing is done.
@@ -1305,7 +1317,7 @@ data. It uses the element google-signin for the communication with google webser
         this.dataRequests.push(["writeSheetData",parent,range,data,onDataWritten]);
         return;
       }
-      
+
       __cloudData = {self:this};
       this._callGoogleApi("writing range " + range + "...",function(authResult)
       {
@@ -1395,7 +1407,7 @@ data. It uses the element google-signin for the communication with google webser
         this.dataRequests.push(["addSheet",parent,title,onSheetAdded]);
         return;
       }
-      
+
       __cloudData = {self:this};
       this._callGoogleApi("adding sheet " + title + "...",function(authResult)
       {
@@ -1404,7 +1416,7 @@ data. It uses the element google-signin for the communication with google webser
           var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
                      ,requests:
                       {
-                        addSheet: 
+                        addSheet:
                         {
                           properties:
                           {
@@ -1438,6 +1450,86 @@ data. It uses the element google-signin for the communication with google webser
           onSheetAdded(parent,title,"error",error.result.error);
         __cloudData.self._msg(error.result.error.message);
         __cloudData.self._endRequest("writeSheetData");
+      });
+    },
+    /**
+     * Copy a sheet.
+     *
+     * @param {Object}  parent         the parent that will be given as parameter to onSheetAdded. Since
+     *                                 the variable "this" is this class when invoking the onSheetAdded-
+     *                                 callback, parent should be set to the object, that contains the
+     *                                 function onSheetAdded
+     * @param {String}  id             id of the sheet to copy.
+     * @param {String}  name           title of the new sheet.
+     * @param {Event}   onSheetCopied   the function that gets called when adding is done.
+     *
+     * the function onSheetCopied receives this parameters:
+     *
+     * {Object} parent  the same parameter that was given in addSheet.
+     *
+     * {String} id     the same parameter that was given in addSheet.
+     *
+     * {String} name   the same parameter that was given in addSheet.
+     *
+     * {String} status  the status of the operation:
+     *
+     *                  "ok"        everything is fine.
+     *
+     *                  "error"     the data property contains an object with the error.
+     *
+     * {Object} sheet    result of the add operation.
+     */
+    copySheet: function(parent,id,newName,onSheetCopied)
+    {
+      if(__cloudData != undefined)
+      {
+        this.dataRequests.push(["copySheet",parent,id,newName,onSheetCopied]);
+        return;
+      }
+
+      __cloudData = {self:this};
+      this._callGoogleApi("copying sheet " + id + " to " + name + "...",function(authResult)
+      {
+        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        {
+          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                     ,requests:
+                      [
+                       {
+                         duplicateSheet:
+                         {
+                           sourceSheetId: id
+                          ,insertSheetIndex: 9999
+                          ,newSheetName: newName
+                         }
+                       }
+                      ]
+                     };
+          gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
+          {
+            if(onSheetCopied)
+              onSheetCopied(parent,id,name,"ok",response.result.replies[0].duplicateSheet.properties);
+            __cloudData.self._endRequest("copySheet");
+          }, function(error)
+          {
+            if(onSheetCopied)
+              onSheetCopied(parent,id,name,"error",error.result.error);
+            __cloudData.self._msg(error.result.error.message);
+            __cloudData.self._endRequest("copySheet");
+          });
+        }, function(error)
+        {
+          if(onSheetCopied)
+            onSheetCopied(parent,id,name,"error",error.result.error);
+          __cloudData.self._msg(error.result.error.message);
+          __cloudData.self._endRequest("copySheet");
+        });
+      }, function(error)
+      {
+        if(onSheetCopied)
+          onSheetCopied(parent,id,name,"error",error.result.error);
+        __cloudData.self._msg(error.result.error.message);
+        __cloudData.self._endRequest("copySheet");
       });
     }
   });

@@ -90,7 +90,7 @@
     }
    ,tapFilelist: function()
     {
-      this.cloudData.requestFileList(this,"*.*",this.listLoaded);
+      this.cloudData.requestFileList(this,"*.*",this.listLoaded,undefined,"mimeType='application/vnd.google-apps.spreadsheet'");
     }
    ,listLoaded: function(self,status,list)
     {
