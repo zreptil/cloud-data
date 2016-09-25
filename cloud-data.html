@@ -421,18 +421,41 @@ data. It uses the element google-signin for the communication with google webser
       }.bind(this));
     },
     /**
+     * Create metadata for usage in an http-request from javascript object.
+		 *
+		 * @param {Object} data    the object to create metadata from.
+     */
+    _getMetadata: function(data)
+    {
+      var ret = "";
+      if(data == undefined)
+        return ret;
+      var diff = "";
+        
+      for(var key in data)
+      {
+        if(data[key] instanceof Object)
+          ret += diff + "\n \"" + key + "\":{" + this._getMetadata(data[key]) + "\n }";
+        else
+          ret += diff + "\n \"" + key + "\":\"" + data[key] + "\"";
+        diff = ",";
+      }
+      
+      return ret;
+    },
+    /**
      * Saves data to the cloud and calls onDataSaved afterwards.
      *
-     * @param {object} parent       the parent that will be given as parameter to onDataSaved.
-     * @param {object} data         the data that should be saved.
-     * @param {string} ext          file extension without the dot.
-     * @param {event}  onDataSaved  the function that gets called when saving is done.
+     * @param {Object} parent       the parent that will be given as parameter to onDataSaved.
+     * @param {Object} data         the data that should be saved.
+     * @param {String} ext          file extension without the dot.
+     * @param {Event}  onDataSaved  the function that gets called when saving is done.
      *
      * the function onDataSaved receives this parameters:
      *
-     * {object}  parent  the parent that was given in saveData.
+     * {Object}  parent  the parent that was given in saveData.
      *
-     * {string}  status  the status of the operation:
+     * {String}  status  the status of the operation:
      *
      *                   "ok"        everything is fine.
      *
@@ -446,7 +469,7 @@ data. It uses the element google-signin for the communication with google webser
      *                               the last call to requestData and the check
      *                               was performed already.
      *
-     * {object}  data    the data that was saved or the json-data of the error.
+     * {Object}  data    the data that was saved or the json-data of the error.
      */
     saveData: function(parent,data,ext,onDataSaved)
     {
@@ -504,13 +527,14 @@ data. It uses the element google-signin for the communication with google webser
           if(ext == "json")
             mime = "application/json";
           var temp = "--" + boundary;
-          var metadata = "\n \"name\":\"" + data._id + "." + ext + "\"";
-          if(saveData.metadata)
-          {
-            for(var key in saveData.metadata)
-              metadata += ",\n \"" + key + "\":\"" + saveData.metadata[key] + "\"";
-          }
-          temp += "\nContent-Type: application/json; charset=UTF-8\n\n{" + metadata + "\n}\n\n";
+          var metadata = "{\n \"name\":\"";
+          if(data._id)
+            metadata += data._id;
+          else
+            metadata += data.name;
+          metadata += "." + ext + "\"";
+          metadata += "," + __cloudData.self._getMetadata(saveData.metadata) + "\n}";
+          temp += "\nContent-Type: application/json; charset=UTF-8\n\n" + metadata + "\n\n";
           temp += "--" + boundary + "\nContent-Type: " + mime + "\n\n" + saveText + "\n";
           temp += "--" + boundary + "--";
           saveData = temp;
@@ -546,15 +570,20 @@ data. It uses the element google-signin for the communication with google webser
               }
               __cloudData.self._msgDebug("saveData: file was not modified - saving file");
               xhr = new XMLHttpRequest();
-              xhr.open("PUT", "https://www.googleapis.com/upload/drive/v2/files/" + data._fileId + "?uploadType=multipart");
+              xhr.open("PATCH", "https://www.googleapis.com/upload/drive/v3/files/" + data._fileId + "?uploadType=multipart");
               xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
               xhr.setRequestHeader("Content-Type", "multipart/related; boundary=" + boundary);
               xhr.onload=function()
               {
                 if(xhr.status == 200)
+                {
                   __cloudData.self._saveResult(xhr.responseText,parent,"ok",onDataSaved,data,ext);
+                }
                 else
+                {
+                  __cloudData.self._msg(__cloudData.self._getError("error in cloud-data.saveData:",JSON.parse(xhr.response)));
                   __cloudData.self._saveResult(xhr.responseText,parent,xhr.status,onDataSaved,data,ext);
+                }
               };
               xhr.onerror=function()
               {
@@ -567,7 +596,7 @@ data. It uses the element google-signin for the communication with google webser
           }
           else // saving new file
           {
-            if(this.isDebug)this.$.overlay.show("Speichere Daten...");
+            if(this.isDebug)this.$.overlay.show("creating new file...");
             xhr.open("POST", "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart");
             xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
             xhr.setRequestHeader("Content-Type", "multipart/related; boundary=" + boundary);
@@ -609,7 +638,7 @@ data. It uses the element google-signin for the communication with google webser
     /**
      * Creates a clone of an object.
      *
-     * @param {object} obj    the object that should be cloned.
+     * @param {Object} obj    the object that should be cloned.
      */
     cloneOf: function(obj)
     {
@@ -653,9 +682,9 @@ data. It uses the element google-signin for the communication with google webser
     /**
      * Checks, if the data that should be saved was changed on the server since it was loaded.
      *
-     * @param {object} parent         the parent that will be used for sending callbacks.
-     * @param {object} data           the data that should be checked.
-     * @param {event}  onDataChecked  the function that is called when checking was done.
+     * @param {Object} parent         the parent that will be used for sending callbacks.
+     * @param {Object} data           the data that should be checked.
+     * @param {Event}  onDataChecked  the function that is called when checking was done.
      */
     checkModifiedOnServer: function(parent,data,onDataChecked)
     {
@@ -706,6 +735,36 @@ data. It uses the element google-signin for the communication with google webser
       }
     },
     /**
+     * Creates an errorstring from a response.
+     * 
+     * @param {String} msg       the message to prepend to the error information.
+     *
+     * @param {Object} response  the response of the server with the error information.
+     */
+    _getError: function(msg,response)
+    {
+      if(response.data && response.data.length > 0)
+      {
+        for(var i=0; i<response.data.length; i++)
+        {
+          var e = response.data[i];
+          msg += "\n" + i + " - location = " + e[i].location + ", type = " + e[i].locationType;
+        }
+        msg += "\n";
+      }
+      if(response.error && response.error.errors.length > 0)
+      {
+        for(var i=0; i<response.error.errors.length; i++)
+        {
+          var e = response.error.errors[i];
+          msg += "\n" + i + " - location = " + e.message + ", reason = " + e.reason;
+        }
+        msg += "\n";
+      }
+      
+      return msg + response.message;
+    },
+    /**
      * Request list of files from server. the list contains a maximum of 1000 files.
      *
      * @param {Object} parent       the parent that will be given as parameter to onDataLoaded.
@@ -722,15 +781,15 @@ data. It uses the element google-signin for the communication with google webser
      *
      * the function onListLoaded receives this parameters:
      *
-     * {object} parent  the parent that was given in reqeustData.
+     * {Object} parent  the parent that was given in reqeustData.
      *
-     * {string} status  the status of the operation:
+     * {String} status  the status of the operation:
      *
      *                  "ok"        everything is fine.
      *
      *                  "error"     the data property contains an object with the id as property _id.
      *
-     * {array}  list    the list of found files.
+     * {Array}  list    the list of found files.
      */
     requestFileList: function(parent,filemask,onListLoaded,fields,query)
     {
@@ -768,14 +827,7 @@ data. It uses the element google-signin for the communication with google webser
             if(files == undefined)
             {
               status = "error";
-              files = "error in cloud-data.requestFileList:";
-              if(resp.data && resp.data.length > 0)
-              {
-                for(var i=0; i<resp.data.length; i++)
-                  files += "\n" + i + " - location = " + resp.data[0].location + ", type = " + resp.data[0].locationType;
-                files += "\n";
-              }
-              files += resp.message;
+              files = __cloudData.self._getError("error in cloud-data.requestFileList:",resp);
               __cloudData.self._msg(files)
             }
             else
