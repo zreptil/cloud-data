@@ -166,6 +166,7 @@ data. It uses the element google-signin for the communication with google webser
      * Calls the api of google.
      *
      * @param {String} msg       message to display on overlay.
+     *
      * @param {Event}  callback  function to be called when authorization succeeded.
      */
     _callGoogleApi: function(msg,callback,skipTimeout)
@@ -735,7 +736,7 @@ data. It uses the element google-signin for the communication with google webser
     {
       if(__cloudData != undefined)
       {
-        this.dataRequests.push(["requestFileList",parent,filemask,onListLoaded,fields]);
+        this.dataRequests.push(["requestFileList",parent,filemask,onListLoaded,fields,query]);
         return;
       }
 
@@ -763,10 +764,19 @@ data. It uses the element google-signin for the communication with google webser
           request.execute(function(resp)
           {
             var files = resp.files;
+            var status = "ok";
             if(files == undefined)
             {
-              __cloudData.self._msg("error in cloud-data.requestFileList: " + resp.message)
-              files = [];
+              status = "error";
+              files = "error in cloud-data.requestFileList:";
+              if(resp.data && resp.data.length > 0)
+              {
+                for(var i=0; i<resp.data.length; i++)
+                  files += "\n" + i + " - location = " + resp.data[0].location + ", type = " + resp.data[0].locationType;
+                files += "\n";
+              }
+              files += resp.message;
+              __cloudData.self._msg(files)
             }
             else
             {
@@ -781,8 +791,8 @@ data. It uses the element google-signin for the communication with google webser
               }
             }
             if(onListLoaded)
-              onListLoaded(parent,"ok",files);
-            __cloudData.self._endRequest("filelist");
+              onListLoaded(parent,status,files);
+            __cloudData.self._endRequest("requestFileList");
           });
         });
       });
@@ -963,7 +973,7 @@ data. It uses the element google-signin for the communication with google webser
               setTimeout(this.saveData(req[1],req[2],req[3],req[4]),100);
               break;
             case "requestFileList":
-              setTimeout(this.requestFileList(req[1],req[2],req[3],req[4]),100);
+              setTimeout(this.requestFileList(req[1],req[2],req[3],req[4],req[5]),100);
               break;
             case "requestCalendarList":
               setTimeout(this.requestCalendarList(req[1],req[2]),100);
@@ -991,6 +1001,9 @@ data. It uses the element google-signin for the communication with google webser
               break;
             case "copySheet":
               setTimeout(this.copySheet(req[1],req[2],req[3],req[4]),100);
+              break;
+            case "createSpreadsheet":
+              setTimeout(this.createSpreadsheet(req[1],req[2],req[3]),100);
               break;
           }
         }
@@ -1138,17 +1151,94 @@ data. It uses the element google-signin for the communication with google webser
       this.$.overlay.showCancelButton = false;
     },
     /**
+     * Calls the google api for sheets.
+     *
+     * @param {Object}  parent   the parent that will be given as parameter to onDone. Since
+     *                           the variable "this" is this class when invoking the onDone-
+     *                           callback, parent should be set to the object, that contains the
+     *                           functions onSuccess and onError.
+     *
+     * @param {String}  id       id of the calling function.
+     *
+     * @param {String} msg       message to display on overlay.
+     *
+     * @param {Event}  onSuccess the function that gets called when api was loaded.
+     *
+     * @param {Event}  onError   the function that gets called when api could not be loaded.
+     *
+     * the function onSuccess is called without parameters.
+     *
+     * the function onError receives this parameters:
+     *
+     * {Object} self   the parent parameter.
+     *
+     * {String} status always the string "error".
+     *
+     * {Object} error  the error object.
+     */
+    _callGoogleSheetsApi: function(parent,id,msg,onSuccess,onError)
+    {
+      this._callGoogleApi(msg,function(authResult)
+      {
+        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        {
+          if(onSuccess)
+            onSuccess();
+        }, function(error)
+        {
+          __cloudData.self._apiError(parent,id,error,onError);
+        });
+      }, function(error)
+      {
+        __cloudData.self._apiError(parent,id,error,onError);
+      });
+    },
+    /**
+     * Is called, when an error occurs when calling the google sheets api.
+     *
+     * @param {Object}  parent   the parent that will be given as parameter to onError. Since
+     *                           the variable "this" is this class when invoking the onError-
+     *                           callback, parent should be set to the object, that contains the
+     *                           function onError.
+     *
+     * @param {String}  id       id of the calling function.
+     *
+     * @param {String} msg       message to display on overlay.
+     *
+     * @param {Event}  onSuccess the function that gets called when api was loaded.
+     *
+     * @param {Event}  onError   the function that gets called when api could not be loaded.
+     *
+     * the function onSuccess is called without parameters.
+     *
+     * the function onError receives this parameters:
+     *
+     * {Object} self   the parent parameter.
+     *
+     * {String} status always the string "error".
+     *
+     * {Object} error  the error object.
+     */
+    _apiError: function(parent,id,error,onError)
+    {
+      if(onError)
+        onError(parent,"error",error.result.error);
+      __cloudData.self._msg(error.result.error.message);
+      __cloudData.self._endRequest(id);
+    },
+    /**
      * Retrieve info about a google sheet.
      *
-     * @param {Object}  parent       the parent that will be given as parameter to onDataLoaded. Since
-     *                               the variable "this" is this class when invoking the onDataLoaded-
+     * @param {Object}  parent       the parent that will be given as parameter to onDone. Since
+     *                               the variable "this" is this class when invoking the onDone-
      *                               callback, parent should be set to the object, that contains the
-     *                               function onDataLoaded.
-     * @param {Event}   onInfoLoaded the function that gets called when loading is done.
+     *                               function onDone.
      *
-     * the function onInfoLoaded receives this parameters:
+     * @param {Event}   onDone       the function that gets called when loading is done.
      *
-     * {Object} parent  the same parameter that was given in loadSheetInfo.
+     * the function onDone receives this parameters:
+     *
+     * {Object} self    the parent parameter.
      *
      * {String} status  the status of the operation:
      *
@@ -1158,64 +1248,50 @@ data. It uses the element google-signin for the communication with google webser
      *
      * {Object} sheets  an array of sheets information the error data.
      */
-    loadSheetInfo: function(parent,onInfoLoaded)
+    loadSheetInfo: function(parent,onDone)
     {
       if(__cloudData != undefined)
       {
-        this.dataRequests.push(["loadSheetInfo",parent,onInfoLoaded]);
+        this.dataRequests.push(["loadSheetInfo",parent,onDone]);
         return;
       }
 
       __cloudData = {self:this};
-      this._callGoogleApi("loading Sheetinfo...",function(authResult)
+      this._callGoogleSheetsApi(parent,"loadSheetInfo","loading Sheetinfo...",function()
       {
-        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                   ,fields: "sheets.properties"};
+        gapi.client.sheets.spreadsheets.get(args).then(function(response)
         {
-          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
-                     ,fields: "sheets.properties"};
-          gapi.client.sheets.spreadsheets.get(args).then(function(response)
+          if(onDone)
           {
-            if(onInfoLoaded)
-            {
-              var sheets = [];
-              for(var i=0; i<response.result.sheets.length; i++)
-                sheets.push(response.result.sheets[i].properties);
-              onInfoLoaded(parent,"ok",sheets);
-            }
-            __cloudData.self._endRequest("loadSheetInfo");
-          }, function(error)
-          {
-            if(onInfoLoaded)
-              onInfoLoaded(parent,"error",error.result.error);
-            __cloudData.self._msg(error.result.error.message);
-            __cloudData.self._endRequest("loadSheetInfo");
-          });
+            var sheets = [];
+            for(var i=0; i<response.result.sheets.length; i++)
+              sheets.push(response.result.sheets[i].properties);
+            onDone(parent,"ok",sheets);
+          }
+          __cloudData.self._endRequest("loadSheetInfo");
         }, function(error)
         {
-          if(onInfoLoaded)
-            onInfoLoaded(parent,"error",error.result.error);
-          __cloudData.self._msg(error.result.error.message);
-          __cloudData.self._endRequest("loadSheetInfo");
+          __cloudData.self._apiError(parent,"loadSheetInfo",error,onDone);
         });
-      });
+      },onDone);
     },
     /**
      * Retrieve data from a google sheet.
      *
-     * @param {Object}  parent         the parent that will be given as parameter to onDataReceived. Since
-     *                                 the variable "this" is this class when invoking the onDataReceived-
+     * @param {Object}  parent         the parent that will be given as parameter to onDone. Since
+     *                                 the variable "this" is this class when invoking the onDone-
      *                                 callback, parent should be set to the object, that contains the
-     *                                 function onDataReceived
+     *                                 function onDone
      * @param {String   range          range of cells to be loaded. if this is an array, then every entry
      *         or                      in this array is considered a range to receive.
      *         Array}
-     * @param {Event}   onDataReceived the function that gets called when loading is done.
+     * @param {Event}   onDone         the function that gets called when loading is done.
      *
-     * the function onDataReceived receives this parameters:
+     * the function onDone receives this parameters:
      *
-     * {Object} parent  the same parameter that was given in readSheetData.
-     *
-     * {String} range   the same parameter that was given in readSheetData.
+     * {Object} self    the parent parameter.
      *
      * {String} status  the status of the operation:
      *
@@ -1224,83 +1300,71 @@ data. It uses the element google-signin for the communication with google webser
      *                  "error"     the data property contains an object with the error.
      *
      * {Object} data    the data that was loaded or the json-data of the error
+     *
+     * {String} range   the range parameter.
+     *
      */
-    readSheetData: function(parent,range,onDataReceived)
+    readSheetData: function(parent,range,onDone)
     {
       if(__cloudData != undefined)
       {
-        this.dataRequests.push(["readSheetData",parent,range,onDataReceived]);
+        this.dataRequests.push(["readSheetData",parent,range,onDone]);
         return;
       }
 
       __cloudData = {self:this};
 
-
-      this._callGoogleApi("reading range " + range + "...",function(authResult)
+      this._callGoogleSheetsApi(parent,"readSheetData","reading range " + range + "...",function()
       {
-        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                   ,range: range
+                   ,valueRenderOption: "UNFORMATTED_VALUE"};
+        if(range.constructor === Array)
         {
-          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId,range: range};
-          if(range.constructor === Array)
+          delete args.range;
+          args.ranges = range;
+          args.majorDimension = "ROWS";
+          gapi.client.sheets.spreadsheets.values.batchGet(args).then(function(response)
           {
-            delete args.range;
-            args.ranges = range;
-            args.valueRenderOption = "UNFORMATTED_VALUE";
-            args.majorDimension = "ROWS";
-            gapi.client.sheets.spreadsheets.values.batchGet(args).then(function(response)
-            {
-              if(onDataReceived)
-                onDataReceived(parent,range,"ok",response.result.valueRanges);
-              __cloudData.self._endRequest("readSheetData");
-            }, function(error)
-            {
-              if(onDataReceived)
-                onDataReceived(parent,range,"error",error.result.error);
-              __cloudData.self._msg(error.result.error.message);
-              __cloudData.self._endRequest("readSheetData");
-            });
-          }
-          else
+            if(onDone)
+              onDone(parent,"ok",response.result.valueRanges,range);
+            __cloudData.self._endRequest("readSheetData");
+          }, function(error)
           {
-            gapi.client.sheets.spreadsheets.values.get(args).then(function(response)
-            {
-              if(onDataReceived)
-                onDataReceived(parent,range,"ok",response.result.values);
-              __cloudData.self._endRequest("readSheetData");
-            }, function(error)
-            {
-              if(onDataReceived)
-                onDataReceived(parent,range,"error",error.result.error);
-              __cloudData.self._msg(error.result.error.message);
-              __cloudData.self._endRequest("readSheetData");
-            });
-          }
-        });
-      },function(error)
-      {
-        if(onDataReceived)
-          onDataReceived(parent,range,"error",error.result.error);
-        __cloudData.self._msg(error.result.error.message);
-        __cloudData.self._endRequest("readSheetData");
-      });
+            __cloudData.self._apiError(parent,"readSheetData",error,onDone);
+          });
+        }
+        else
+        {
+          gapi.client.sheets.spreadsheets.values.get(args).then(function(response)
+          {
+            if(onDone)
+              onDone(parent,"ok",response.result.values,range);
+            __cloudData.self._endRequest("readSheetData");
+          }, function(error)
+          {
+            __cloudData.self._apiError(parent,"readSheetData",error,onDone);
+          });
+        }
+      }, onDone);
     },
     /**
      * Write data to a google sheet.
      *
-     * @param {Object}  parent         the parent that will be given as parameter to onDataWritten. Since
-     *                                 the variable "this" is this class when invoking the onDataWritten-
+     * @param {Object}  parent         the parent that will be given as parameter to onDone. Since
+     *                                 the variable "this" is this class when invoking the onDone-
      *                                 callback, parent should be set to the object, that contains the
-     *                                 function onDataWritten
+     *                                 function onDone
      * @param {String}  range          range of cells to be written. if this is empty then the data is
      *                                 considered to be written with batchUpdate.
+     *
      * @param {Object}  data           data to write.
-     * @param {Event}   onDataWritten the function that gets called when writing is done.
      *
-     * the function onDataWritten receives this parameters:
+     * @param {Event}   onDone the function that gets called when writing is done.
      *
-     * {Object} parent  the same parameter that was given in writeSheetData.
+     * the function onDone receives this parameters:
      *
-     * {String} range   the same parameter that was given in writeSheetData.
+     * {Object} self    the parent parameter.
      *
      * {String} status  the status of the operation:
      *
@@ -1309,88 +1373,67 @@ data. It uses the element google-signin for the communication with google webser
      *                  "error"     the data property contains an object with the error.
      *
      * {Object} data    result of the write operation.
+     *
+     * {String} range   the range parameter.
      */
-    writeSheetData: function(parent,range,data,onDataWritten)
+    writeSheetData: function(parent,range,data,onDone)
     {
       if(__cloudData != undefined)
       {
-        this.dataRequests.push(["writeSheetData",parent,range,data,onDataWritten]);
+        this.dataRequests.push(["writeSheetData",parent,range,data,onDone]);
         return;
       }
 
       __cloudData = {self:this};
-      this._callGoogleApi("writing range " + range + "...",function(authResult)
+      this._callGoogleSheetsApi(parent,"writeSheetData","writing range " + range + "...",function()
       {
-        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        if(range == "" || range == undefined)
         {
-          if(range == "" || range == undefined)
+          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                     ,requests:data};
+          gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
           {
-            var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
-                       ,data: data
-                       ,valueInputOption: "USER_ENTERED"};
-            gapi.client.sheets.spreadsheets.values.batchUpdate(args).then(function(response)
-            {
-              if(onDataWritten)
-                onDataWritten(parent,range,"ok",response.result);
-              __cloudData.self._endRequest("writeSheetData");
-            }, function(error)
-            {
-              if(onDataWritten)
-                onDataWritten(parent,range,"error",error.result.error);
-              __cloudData.self._msg(error.result.error.message);
-              __cloudData.self._endRequest("writeSheetData");
-            });
-          }
-          else
+            if(onDone)
+              onDone(parent,"ok",response.result,range);
+            __cloudData.self._endRequest("writeSheetData");
+          }, function(error)
           {
-            var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
-                       ,majorDimension: "ROWS"
-                       ,range: range
-                       ,values: data
-                       ,valueInputOption: "USER_ENTERED"};
-            gapi.client.sheets.spreadsheets.values.update(args).then(function(response)
-            {
-              if(onDataWritten)
-                onDataWritten(parent,range,"ok",response.result);
-              __cloudData.self._endRequest("writeSheetData");
-            }, function(error)
-            {
-              if(onDataWritten)
-                onDataWritten(parent,range,"error",error.result.error);
-              __cloudData.self._msg(error.result.error.message);
-              __cloudData.self._endRequest("writeSheetData");
-            });
-          }
-        }, function(error)
+            __cloudData.self._apiError(parent,"writeSheetData",error,onDone);
+          });
+        }
+        else
         {
-          if(onDataWritten)
-            onDataWritten(parent,range,"error",error.result.error);
-          __cloudData.self._msg(error.result.error.message);
-          __cloudData.self._endRequest("writeSheetData");
-        });
-      }, function(error)
-      {
-        if(onDataWritten)
-          onDataWritten(parent,range,"error",error.result.error);
-        __cloudData.self._msg(error.result.error.message);
-        __cloudData.self._endRequest("writeSheetData");
-      });
+          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                     ,majorDimension: "ROWS"
+                     ,range: range
+                     ,values: data
+                     ,valueInputOption: "USER_ENTERED"};
+          gapi.client.sheets.spreadsheets.values.update(args).then(function(response)
+          {
+            if(onDone)
+              onDone(parent,"ok",response.result,range);
+            __cloudData.self._endRequest("writeSheetData");
+          }, function(error)
+          {
+            __cloudData.self._apiError(parent,"writeSheetData",error,onDone);
+          });
+        }
+      },onDone);
     },
     /**
      * Add a page to google sheet.
      *
-     * @param {Object}  parent         the parent that will be given as parameter to onSheetAdded. Since
-     *                                 the variable "this" is this class when invoking the onSheetAdded-
+     * @param {Object}  parent         the parent that will be given as parameter to onDone. Since
+     *                                 the variable "this" is this class when invoking the onDone-
      *                                 callback, parent should be set to the object, that contains the
-     *                                 function onSheetAdded
+     *                                 function onDone
      * @param {String}  title          title of the new sheet.
-     * @param {Event}   onSheetAdded   the function that gets called when adding is done.
      *
-     * the function onSheetAdded receives this parameters:
+     * @param {Event}   onDone         the function that gets called when adding is done.
      *
-     * {Object} parent  the same parameter that was given in addSheet.
+     * the function onDone receives this parameters:
      *
-     * {String} title   the same parameter that was given in addSheet.
+     * {Object} self    the parameter parent.
      *
      * {String} status  the status of the operation:
      *
@@ -1398,78 +1441,124 @@ data. It uses the element google-signin for the communication with google webser
      *
      *                  "error"     the data property contains an object with the error.
      *
-     * {Object} data    result of the add operation.
+     * {Object} data    the sheet or the error information.
+     *
+     * {Object} title   the parameter title.
+     *
+     * if onDone returns an array then this array is executed as a request for updateBatch on
+     * the added sheet.
      */
-    addSheet: function(parent,title,onSheetAdded)
+    addSheet: function(parent,title,onDone)
     {
       if(__cloudData != undefined)
       {
-        this.dataRequests.push(["addSheet",parent,title,onSheetAdded]);
+        this.dataRequests.push(["addSheet",parent,title,onDone]);
         return;
       }
 
       __cloudData = {self:this};
-      this._callGoogleApi("adding sheet " + title + "...",function(authResult)
+      this._callGoogleSheetsApi(parent,"addSheet","adding sheet " + title + "...",function()
       {
-        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
+        var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                   ,requests:[{addSheet:{properties:{title: title}}}]
+                   };
+        
+        gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
         {
-          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
-                     ,requests:
-                      {
-                        addSheet:
-                        {
-                          properties:
-                          {
-                            title: title
-                          }
-                        }
-                      }
-                     };
-          gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
+          if(onDone)
           {
-            if(onSheetAdded)
-              onSheetAdded(parent,title,"ok",response.result);
-            __cloudData.self._endRequest("writeSheetData");
-          }, function(error)
+            var request = onDone(parent,"ok",response.result.replies[0].addSheet.properties,title);
+            if(request != undefined && request.constructor === Array)
+            {
+              args.requests = request;
+              gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
+              {
+                __cloudData.self._endRequest("addSheet");
+              }, function(error)
+              {
+                __cloudData.self._apiError(parent,"addSheet",error,onDone);
+              });
+            }
+            else
+            {
+              __cloudData.self._endRequest("addSheet");
+            }
+          }
+          else
           {
-            if(onSheetAdded)
-              onSheetAdded(parent,title,"error",error.result.error);
-            __cloudData.self._msg(error.result.error.message);
-            __cloudData.self._endRequest("writeSheetData");
-          });
+            __cloudData.self._endRequest("addSheet");
+          }
         }, function(error)
         {
-          if(onSheetAdded)
-            onSheetAdded(parent,title,"error",error.result.error);
-          __cloudData.self._msg(error.result.error.message);
-          __cloudData.self._endRequest("writeSheetData");
+          __cloudData.self._apiError(parent,"addSheet",error,onDone);
         });
-      }, function(error)
+      }, onDone); 
+    },
+    /**
+     * Create a new spreadsheet-file.
+     *
+     * @param {Object}  parent         the parent that will be given as parameter to onDone. Since
+     *                                 the variable "this" is this class when invoking the onDone-
+     *                                 callback, parent should be set to the object, that contains the
+     *                                 function onDone
+     *
+     * @param {String}  name           name of the new file.
+     *
+     * @param {Event}   onDone         the function that gets called when everything is done.
+     *
+     * the function onDone receives this parameters:
+     *
+     * {Object} self    the parent parameter.
+     *
+     * {String} status  the status of the operation:
+     *
+     *                  "ok"        everything is fine.
+     *
+     *                  "error"     the data property contains an object with the error.
+     *
+     * {Object} sheet   result of the operation.
+     *
+     * {Object} name    the name parameter.
+     */
+    createSpreadsheet: function(parent,name,onDone)
+    {
+      if(__cloudData != undefined)
       {
-        if(onSheetAdded)
-          onSheetAdded(parent,title,"error",error.result.error);
-        __cloudData.self._msg(error.result.error.message);
-        __cloudData.self._endRequest("writeSheetData");
-      });
+        this.dataRequests.push(["createSpreadsheet",parent,name,onDone]);
+        return;
+      }
+
+      __cloudData = {self:this};
+      this._callGoogleSheetsApi(parent,"createSpreadsheet","creating spreadsheet " + name + "...",function()
+      {
+        gapi.client.sheets.spreadsheets.create().then(function(response)
+        {
+          if(onDone)
+            onDone(parent,"ok",response.result,name);
+          __cloudData.self._endRequest("createSpreadsheet");
+        }, function(error)
+        {
+          __cloudData.self._apiError(parent,"createSpreadsheet",error,onError);
+        });
+      }, onDone);
     },
     /**
      * Copy a sheet.
      *
-     * @param {Object}  parent         the parent that will be given as parameter to onSheetAdded. Since
-     *                                 the variable "this" is this class when invoking the onSheetAdded-
-     *                                 callback, parent should be set to the object, that contains the
-     *                                 function onSheetAdded
-     * @param {String}  id             id of the sheet to copy.
-     * @param {String}  name           title of the new sheet.
-     * @param {Event}   onSheetCopied   the function that gets called when adding is done.
+     * @param {Object}  parent    the parent that will be given as parameter to onDone. Since
+     *                            the variable "this" is this class when invoking the onDone-
+     *                            callback, parent should be set to the object, that contains the
+     *                            function onDone.
+     *
+     * @param {String}  id        id of the sheet to copy.
+     *
+     * @param {String}  newName   title of the new sheet.
+     *
+     * @param {Event}   onDone    the function that gets called when adding is done.
      *
      * the function onSheetCopied receives this parameters:
      *
-     * {Object} parent  the same parameter that was given in addSheet.
-     *
-     * {String} id     the same parameter that was given in addSheet.
-     *
-     * {String} name   the same parameter that was given in addSheet.
+     * {Object} self    the parent parameter.
      *
      * {String} status  the status of the operation:
      *
@@ -1477,60 +1566,46 @@ data. It uses the element google-signin for the communication with google webser
      *
      *                  "error"     the data property contains an object with the error.
      *
-     * {Object} sheet    result of the add operation.
+     * {Object} sheet   result of the add operation.
+     *
+     * {String} id      the id parameter.
+     *
+     * {String} newName the newName parameter.
      */
-    copySheet: function(parent,id,newName,onSheetCopied)
+    copySheet: function(parent,id,newName,onDone)
     {
       if(__cloudData != undefined)
       {
-        this.dataRequests.push(["copySheet",parent,id,newName,onSheetCopied]);
+        this.dataRequests.push(["copySheet",parent,id,newName,onDone]);
         return;
       }
 
       __cloudData = {self:this};
-      this._callGoogleApi("copying sheet " + id + " to " + name + "...",function(authResult)
+      this._callGoogleSheetsApi(parent,"copySheet","copying sheet " + id + " to " + name + "...",function()
       {
-        gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
-        {
-          var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
-                     ,requests:
-                      [
+        var args = {spreadsheetId:__cloudData.self.googleSheetsFileId
+                   ,requests:
+                    [
+                     {
+                       duplicateSheet:
                        {
-                         duplicateSheet:
-                         {
-                           sourceSheetId: id
-                          ,insertSheetIndex: 9999
-                          ,newSheetName: newName
-                         }
+                         sourceSheetId: id
+                        ,insertSheetIndex: 9999
+                        ,newSheetName: newName
                        }
-                      ]
-                     };
-          gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
-          {
-            if(onSheetCopied)
-              onSheetCopied(parent,id,name,"ok",response.result.replies[0].duplicateSheet.properties);
-            __cloudData.self._endRequest("copySheet");
-          }, function(error)
-          {
-            if(onSheetCopied)
-              onSheetCopied(parent,id,name,"error",error.result.error);
-            __cloudData.self._msg(error.result.error.message);
-            __cloudData.self._endRequest("copySheet");
-          });
+                     }
+                    ]
+                   };
+        gapi.client.sheets.spreadsheets.batchUpdate(args).then(function(response)
+        {
+          if(onDone)
+            onDone(parent,"ok",response.result.replies[0].duplicateSheet.properties,id,name);
+          __cloudData.self._endRequest("copySheet");
         }, function(error)
         {
-          if(onSheetCopied)
-            onSheetCopied(parent,id,name,"error",error.result.error);
-          __cloudData.self._msg(error.result.error.message);
-          __cloudData.self._endRequest("copySheet");
+          __cloudData.self._apiError(parent,"copySheet",error,onDone);
         });
-      }, function(error)
-      {
-        if(onSheetCopied)
-          onSheetCopied(parent,id,name,"error",error.result.error);
-        __cloudData.self._msg(error.result.error.message);
-        __cloudData.self._endRequest("copySheet");
-      });
+      }, onDone);
     }
   });
 </script>
