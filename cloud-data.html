@@ -1,6 +1,5 @@
 ﻿<link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="../google-signin/google-signin.html">
-<link rel="import" href="../google-apis/google-client-loader.html">
 <link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
 <link rel="import" href="import.html">
 <link rel="import" href="cloud-data-overlay.html">
@@ -42,7 +41,6 @@ data. It uses the element google-signin for the communication with google webser
         }
       }
     </style>
-    <google-client-loader id="calendar" name="calendar" version="v3"></google-client-loader>
     <google-signin id="button"
       brand="google"
       client-id="{{googleClientId}}"
@@ -80,7 +78,7 @@ data. It uses the element google-signin for the communication with google webser
         * The scopes that are needed to do the work. This should not be changed, unless the code
         * changes and more scopes are required.
         */
-      ,_scopes: {type:String, value: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/spreadsheets"}
+      ,_scopes: {type:String, value: ""}
       /**
         * if true, the client is disconnected when the user signs out from google.
         */
@@ -138,6 +136,13 @@ data. It uses the element google-signin for the communication with google webser
     },
     ready: function()
     {
+      // set the scopes needed by calls to _callGoogleApi
+      this.scDrive = "https://www.googleapis.com/auth/drive ";
+      this.scCalendar = "https://www.googleapis.com/auth/calendar ";
+      this.scSheets = "https://www.googleapis.com/auth/spreadsheets ";
+      
+      // up to now every possible scope has to be defined when signing in
+      this._scopes = this.scDrive + this.scCalendar + this.scSheets;
       this.handlingSignOut = false;
       this.dataPool = [];
       this.dataRequests = [];
@@ -165,15 +170,19 @@ data. It uses the element google-signin for the communication with google webser
     /**
      * Calls the api of google.
      *
-     * @param {String} msg       message to display on overlay.
+     * @param {String}  msg          message to display on overlay.
      *
-     * @param {Event}  callback  function to be called when authorization succeeded.
+     * @param {String}  scopes       the scopes needed for that api call.
+     *
+     * @param {Event}   callback     function to be called when authorization succeeded.
      */
-    _callGoogleApi: function(msg,callback,skipTimeout)
+    _callGoogleApi: function(msg,scopes,callback,skipTimeout)
     {
+      // up to now it is not possible to change the scope after login
+      // this._scopes = scopes;
       if(skipTimeout == undefined && this.hideOverlay)
       {
-        setTimeout(this._callGoogleApi(msg,callback,true),10);
+        setTimeout(this._callGoogleApi(msg,scopes,callback,true),10);
         return;
       }
 
@@ -183,7 +192,7 @@ data. It uses the element google-signin for the communication with google webser
         {
           if(gapi.auth)
           {
-            __cloudData.self._callGoogleApi(msg,callback,true);
+            __cloudData.self._callGoogleApi(msg,scopes,callback,true);
           }
           else
           {
@@ -199,7 +208,7 @@ data. It uses the element google-signin for the communication with google webser
         {
           if(gapi.client)
           {
-            __cloudData.self._callGoogleApi(msg,callback,true);
+            __cloudData.self._callGoogleApi(msg,scopes,callback,true);
           }
           else
           {
@@ -231,11 +240,19 @@ data. It uses the element google-signin for the communication with google webser
           return;
         }
         __cloudData.self.$.overlay.showCancelButton = true;
+        var errMsg = "unknown";
         if(authResult)
-          __cloudData.self.$.overlay.text = "error when accessing google-api: " + authResult.error_description;
-        else
-          __cloudData.self.$.overlay.text = "unknown error when accessing google-api";
+        {
+          if(authResult.error_description)
+            errMsg = authResult.error_description;
+          else if(authResult.error)
+            errMsg = authResult.error;
+        }
+        __cloudData.self.$.overlay.text = "error when accessing google-api: " + errMsg;
         __cloudData.self.$.overlay.showCancelButton = false;
+      },function(error)
+      {
+        __cloudData.self.$.overlay.text = "error when accessing google-api: " + error;
       });
     },
     _handleSignIn: function(response)
@@ -307,41 +324,84 @@ data. It uses the element google-signin for the communication with google webser
       this.$.button.signOut();
     },
     /**
+     * Calls the google api for calendars.
+     *
+     * @param {Object}  parent   the parent that will be given as parameter to onDone. Since
+     *                           the variable "this" is this class when invoking the onDone-
+     *                           callback, parent should be set to the object, that contains the
+     *                           functions onSuccess and onError.
+     *
+     * @param {String}  id       id of the calling function.
+     *
+     * @param {String} msg       message to display on overlay.
+     *
+     * @param {Event}  onSuccess the function that gets called when api was loaded.
+     *
+     * @param {Event}  onError   the function that gets called when api could not be loaded.
+     *
+     * the function onSuccess is called without parameters.
+     *
+     * the function onError receives this parameters:
+     *
+     * {Object} self   the parent parameter.
+     *
+     * {String} status always the string "error".
+     *
+     * {Object} error  the error object.
+     */
+    _callGoogleCalendarApi: function(parent,id,msg,onSuccess,onError)
+    {
+      this._callGoogleApi(msg,this.scSheets,function(authResult)
+      {
+        gapi.client.load("calendar","v3",function()
+        {
+          if(onSuccess)
+            onSuccess();
+        }, function(error)
+        {
+          __cloudData.self._apiError(parent,id,error,onError);
+        });
+      }, function(error)
+      {
+        __cloudData.self._apiError(parent,id,error,onError);
+      });
+    },
+    /**
      * Request a list of calendars for the current user.
      *
-     * @param {object} parent                   the parent that will be given as parameter to onCalendarListReceived
-     * @param {event}  onCalendarListReceived   the function that gets called when the list was received
+     * @param {Object} parent    the parent that will be given as parameter to onCalendarListReceived
+     * @param {Event}  onDone    the function that gets called when the list was received
      */
-    requestCalendarList: function(parent,onCalendarListReceived)
+    requestCalendarList: function(parent,onDone)
     {
       if(__cloudData != undefined)
       {
-        this.dataRequests.push(["requestCalendarList",parent,onCalendarListReceived]);
-        return;
-      }
-
-      if(this.$.calendar.api == undefined)
-      {
-        if(onCalendarListReceived)
-          onCalendarListReceived(parent,[]);
+        this.dataRequests.push(["requestCalendarList",parent,onDone]);
         return;
       }
 
       __cloudData = {self: this};
-      var request = this.$.calendar.api.calendarList.list({"key":""});
-      request.execute(function(resp)
+      this._callGoogleCalendarApi(parent,"requestCalendarList","requesting calendar list...",function()
       {
-        __cloudData = undefined;
-        if (resp.error)
+        var request = gapi.client.calendar.calendarList.list({"key":""});
+        request.execute(function(resp)
         {
-          this._msg("error retrieving calendar list: " + resp.message)
-        }
-        else
+          if (resp.error)
+          {
+            __cloudData.self._endRequest("requestCalendarList");
+            __cloudData.self._msg("error retrieving calendar list: " + resp.message)
+          }
+          else
+          {
+            __cloudData.self._endRequest("requestCalendarList");
+            if(onDone)
+              onDone(parent,resp.items);
+          }
+        }.bind(this),function(error)
         {
-          if(onCalendarListReceived)
-            onCalendarListReceived(parent,resp.items);
-        }
-      }.bind(this));
+          __cloudData.self._apiError(parent,"requestCalendarList",error,onDone);
+        });
+      });
     },
     /**
      * Add a notification to the specified calendar.
@@ -364,61 +424,59 @@ data. It uses the element google-signin for the communication with google webser
         return;
       }
 
-      if(this.$.calendar.api == undefined)
-      {
-        if(onNotificationSet)
-          onNotificationSet(parent);
-        return;
-      }
-
       __cloudData = {self:this};
-      var start = time.substr(0,4)
-                 +"-"+time.substr(4,2)
-                 +"-"+time.substr(6,2)
-                 +"T"+time.substr(8,2)
-                 +":"+time.substr(10,2)
-                 +":00";
-      var evt =
+      this._callGoogleApi("requesting calendar list...",this.scCalendar,function(authResult)
       {
-        summary: text
-       ,description: "created by cloud-data"
-       ,start:
+        gapi.client.load("calendar","v3",function()
         {
-          dateTime: start
-         ,timeZone: "Europe/Berlin"
-        }
-       ,end:
-        {
-          dateTime: start
-         ,timeZone: "Europe/Berlin"
-        }
-       ,reminders:
-        {
-          useDefault: false
-         ,overrides:
-          [
-            {method:"popup",minutes:"1"}
-          ]
-        }
-      };
-      var request = this.$.calendar.api.events.insert
-      (
-        {
-          calendarId:calendarId
-         ,resource:evt
-        }
-      );
-      request.execute(function(resp)
-      {
-        __cloudData = undefined;
-        if (resp.error)
-        {
-          this._msg("error when setting the notification: " + resp.message)
-        }
-        this._endRequest("addNotification");
-        if(onNotificationSet)
-          onNotificationSet(parent,new Date(resp.start.dateTime));
-      }.bind(this));
+          var start = time.substr(0,4)
+                     +"-"+time.substr(4,2)
+                     +"-"+time.substr(6,2)
+                     +"T"+time.substr(8,2)
+                     +":"+time.substr(10,2)
+                     +":00";
+          var evt =
+          {
+            summary: text
+           ,description: "created by cloud-data"
+           ,start:
+            {
+              dateTime: start
+             ,timeZone: "Europe/Berlin"
+            }
+           ,end:
+            {
+              dateTime: start
+             ,timeZone: "Europe/Berlin"
+            }
+           ,reminders:
+            {
+              useDefault: false
+             ,overrides:
+              [
+                {method:"popup",minutes:"1"}
+              ]
+            }
+          };
+          var request = gapi.client.calendar.events.insert
+          (
+            {
+              calendarId:calendarId
+             ,resource:evt
+            }
+          );
+          request.execute(function(resp)
+          {
+            if (resp.error)
+            {
+              __cloudData.self._msg("error when setting the notification: " + resp.message)
+            }
+            __cloudData.self._endRequest("addNotification");
+            if(onNotificationSet)
+              onNotificationSet(parent,new Date(resp.start.dateTime));
+          }.bind(this));
+        });
+      });
     },
     /**
      * Create metadata for usage in an http-request from javascript object.
@@ -505,7 +563,7 @@ data. It uses the element google-signin for the communication with google webser
       __cloudData = {self:this,id:data._id};
 
       __cloudData.self._msgDebug("saveData: connecting to google-server...");
-      this._callGoogleApi("saving data...",function(authResult)
+      this._callGoogleApi("saving data...",this.scDrive,function(authResult)
       {
         gapi.client.load("drive","v3",function()
         {
@@ -527,13 +585,19 @@ data. It uses the element google-signin for the communication with google webser
           if(ext == "json")
             mime = "application/json";
           var temp = "--" + boundary;
-          var metadata = "{\n \"name\":\"";
+          var metadata = "{\n \"title\":\"";
           if(data._id)
             metadata += data._id;
           else
             metadata += data.name;
-          metadata += "." + ext + "\"";
-          metadata += "," + __cloudData.self._getMetadata(saveData.metadata) + "\n}";
+          
+          if(metadata.substr(metadata.length - ext.length - 1) != "." + ext)
+            metadata += "." + ext;
+          metadata += "\"";
+          
+          if(saveData.metadata != undefined)
+            metadata += "," + __cloudData.self._getMetadata(saveData.metadata);
+          metadata += "\n}";
           temp += "\nContent-Type: application/json; charset=UTF-8\n\n" + metadata + "\n\n";
           temp += "--" + boundary + "\nContent-Type: " + mime + "\n\n" + saveText + "\n";
           temp += "--" + boundary + "--";
@@ -564,13 +628,14 @@ data. It uses the element google-signin for the communication with google webser
                 __cloudData.self.$.overlay.close();
                 __cloudData = undefined;
 //                  data._alreadyModChecked = true;
+                data._modified = file.modifiedTime;
                 if(onDataSaved)
                   onDataSaved(parent,"modified",data);
                 return;
               }
               __cloudData.self._msgDebug("saveData: file was not modified - saving file");
               xhr = new XMLHttpRequest();
-              xhr.open("PATCH", "https://www.googleapis.com/upload/drive/v3/files/" + data._fileId + "?uploadType=multipart");
+              xhr.open("PUT", "https://www.googleapis.com/upload/drive/v2/files/" + data._fileId + "?uploadType=multipart");
               xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
               xhr.setRequestHeader("Content-Type", "multipart/related; boundary=" + boundary);
               xhr.onload=function()
@@ -603,9 +668,14 @@ data. It uses the element google-signin for the communication with google webser
             xhr.onload=function()
             {
               if(xhr.status == 200)
+              {
                 __cloudData.self._saveResult(xhr.responseText,parent,"ok",onDataSaved,data,ext);
+              }
               else
+              {
+                __cloudData.self._msg(__cloudData.self._getError("error in cloud-data.saveData:",JSON.parse(xhr.response)));
                 __cloudData.self._saveResult(xhr.responseText,parent,xhr.status,onDataSaved,data,ext);
+              }
             };
             xhr.onerror=function()
             {
@@ -695,7 +765,7 @@ data. It uses the element google-signin for the communication with google webser
       }
 
       __cloudData = {self:this, id:data.id};
-      this._callGoogleApi("",function(authResult)
+      this._callGoogleApi("",this.scDrive,function(authResult)
       {
         gapi.client.load("drive","v3",function()
         {
@@ -809,7 +879,7 @@ data. It uses the element google-signin for the communication with google webser
         query = "name contains '" + filemask + "'";
 
       __cloudData = {self:this, id:"filelist"};
-      this._callGoogleApi("searching files...",function(authResult)
+      this._callGoogleApi("searching files...",this.scDrive,function(authResult)
       {
         gapi.client.load("drive","v3",function()
         {
@@ -860,12 +930,18 @@ data. It uses the element google-signin for the communication with google webser
      *                               callback, parent should be set to the object, that contains the
      *                               function onDataLoaded.
      * @param {Event}   onDataLoaded the function that gets called when loading is done.
+     *
      * @param {String}  msg          the message to display during load.
+     *
      * @param {Boolean} skipDataPool if true, then the data will not be looked up in the datapool.
+     *
+     * @param {String}  query        when set, this query will be used to locate the datafile and not
+     *                               the id. But the id will still be used to locate the file in the
+     *                               datapool.
      *
      * the function onDataLoaded receives this parameters:
      *
-     * {Object} parent  the same parameter that was given in requestData.
+     * {Object} self    the parent parameter that was given in requestData.
      *
      * {String} status  the status of the operation:
      *
@@ -887,7 +963,7 @@ data. It uses the element google-signin for the communication with google webser
      *                   by the function saveData to save the file. If _fileId is not present in the
      *                   object, then a new file is created.
      */
-    requestData: function(id,ext,parent,onDataLoaded,msg,skipDataPool)
+    requestData: function(id,ext,parent,onDataLoaded,msg,skipDataPool,query)
     {
       if(ext == "")
       {
@@ -920,16 +996,39 @@ data. It uses the element google-signin for the communication with google webser
         msg = "loading data...";
       if(!data)
       {
-        this._callGoogleApi(msg,function(authResult)
+        this._callGoogleApi(msg,this.scDrive,function(authResult)
         {
           gapi.client.load("drive","v3",function()
           {
+            if(id.substr(0,1) == "@")
+            {
+              var req = gapi.client.drive.files.get(
+              {
+                "fileId": id.substr(1)
+               ,"alt": "media"
+               ,"fields": "files(idx,name,trashed)"
+              });
+              req.then(function(content)
+              {
+                __cloudData.self._requestResult(content,ext,parent,onDataLoaded,{id:id.substr(1)});
+                __cloudData.self._endRequest(id);
+              },function(error)
+              {
+                __cloudData.self._requestResult(content,ext,parent,onDataLoaded,{id:id.substr(1)});
+                __cloudData.self._endRequest(id);
+              });
+              return;
+            }
+            
             var request = gapi.client.drive.files.list(
             {
               "pageSize": 1000,
               "fields": "nextPageToken, files(id, name, trashed, modifiedTime)",
               "q": "name='" + __cloudData.id + "." + ext + "'"
             });
+            
+            if(query != undefined)
+              request.q = query;
             request.execute(function(resp)
             {
               var files = resp.files;
@@ -981,8 +1080,8 @@ data. It uses the element google-signin for the communication with google webser
               }
               else
               {
-                this._msg(resp.message);
-                this._endRequest(id);
+                __cloudData.self._msg(resp.message);
+                __cloudData.self._endRequest(id);
               }
             });
           });
@@ -1178,7 +1277,7 @@ data. It uses the element google-signin for the communication with google webser
 
       __cloudData = {self:this, id:filemask};
       this.$.overlay.showCancelButton = true;
-      this._callGoogleApi("backupfile is being created...",function(authResult)
+      this._callGoogleApi("backupfile is being created...",this.scDrive,function(authResult)
       {
         gapi.client.load("drive","v3",function()
         {
@@ -1230,7 +1329,7 @@ data. It uses the element google-signin for the communication with google webser
      */
     _callGoogleSheetsApi: function(parent,id,msg,onSuccess,onError)
     {
-      this._callGoogleApi(msg,function(authResult)
+      this._callGoogleApi(msg,this.scSheets,function(authResult)
       {
         gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4").then(function()
         {
