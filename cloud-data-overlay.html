@@ -4,23 +4,23 @@
 <link rel="import" href="../iron-overlay-behavior/iron-overlay-behavior.html">
 
 <dom-module id="cloud-data-overlay">
-  <style is="custom-style">
-    :host
-    {
-      z-index: 1000;
-      background: white;
-    }
-    #cont
-    {
-      padding: 2em;
-    }
-    .btnCancel
-    {
-      background: red;
-      padding: 20em;
-    }
-  </style>
   <template>
+    <style>
+      :host
+      {
+        z-index: 1000;
+        background: white;
+      }
+      #cont
+      {
+        padding: 2em;
+      }
+      .btnCancel
+      {
+        background: red;
+        padding: 20em;
+      }
+    </style>
     <paper-material id="msg" elevation="4">
       <div id="cont"></div>
       <paper-button id="btnCancel" on-tap="_cancelClick">Cancel</paper-button>
